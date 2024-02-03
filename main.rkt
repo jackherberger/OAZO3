@@ -3,16 +3,13 @@
 
 
 ;Arith - language definition
-(define-type ExprC (U numC plusC subC multC divC idC ifleq0C))
-(struct numC  ([n : Real]) #:transparent)
-(struct plusC ([l : ExprC] [r : ExprC]) #:transparent)
-(struct subC  ([l : ExprC] [r : ExprC]) #:transparent)
-(struct multC ([l : ExprC] [r : ExprC]) #:transparent)
-(struct divC  ([l : ExprC] [r : ExprC]) #:transparent)
-(struct appC  ([funid : Symbol] [param : ExprC]) #:transparent)
-(struct idC   ([id : Symbol]) #:transparent)
+(define-type ExprC (U numC binopC idC ifleq0C))
+(struct numC    ([n : Real]) #:transparent)
+(struct binopC  ([operation : Symbol] [l : ExprC] [r : ExprC]) #:transparent)
+(struct appC    ([funid : Symbol] [param : ExprC]) #:transparent)
+(struct idC     ([id : Symbol]) #:transparent)
 (struct ifleq0C ([c : ExprC] [y : ExprC] [n : ExprC]) #:transparent)
-(struct binopC ([operation : Symbol] [l : ExprC] [r : ExprC]) #:transparent)
+
 
 
 
@@ -23,20 +20,20 @@
   (match code
     [(? real? n)   (numC n)]
     [(? symbol? s) (idC s)]
-    [(list '+ l r) (plusC (parse l) (parse r))]
-    [(list '- l r) (subC (parse l) (parse r))]
-    [(list '* l r) (multC (parse l) (parse r))]
-    [(list '/ l r) (divC (parse l) (parse r))]
+    [(list '+ l r) (binopC '+ (parse l) (parse r))]
+    [(list '- l r) (binopC '- (parse l) (parse r))]
+    [(list '* l r) (binopC '* (parse l) (parse r))]
+    [(list '/ l r) (binopC '/ (parse l) (parse r))]
     [(list 'ifleq0? f s r) (ifleq0C (parse f) (parse s) (parse r))]
     [other (error 'OAZO3-parse "syntax error in ~e" other)]))
 
 ;tests
 (check-equal? (parse 1) (numC 1))
 (check-equal? (parse 'y) (idC 'y))
-(check-equal? (parse '{+ 1 2}) (plusC (numC 1) (numC 2)))
-(check-equal? (parse '{- 1 2}) (subC (numC 1) (numC 2)))
-(check-equal? (parse '{* 1 2}) (multC (numC 1) (numC 2)))
-(check-equal? (parse '{/ 1 2}) (divC (numC 1) (numC 2)))
+(check-equal? (parse '{+ 1 2}) (binopC '+ (numC 1) (numC 2)))
+(check-equal? (parse '{- 1 2}) (binopC '- (numC 1) (numC 2)))
+(check-equal? (parse '{* 1 2}) (binopC '* (numC 1) (numC 2)))
+(check-equal? (parse '{/ 1 2}) (binopC '/ (numC 1) (numC 2)))
 (check-equal? (parse '{ifleq0? -1 5 3}) (ifleq0C (numC -1) (numC 5) (numC 3)))
 (check-exn #rx"syntax error" (lambda () (parse '(+ 2))))
 
@@ -49,17 +46,18 @@
   (match a
     [(numC n) n]
     ;[(idC s) s]
-    [(plusC l r) (+ (interp l) (interp r))]
-    [(subC l r)  (- (interp l) (interp r))]
-    [(multC l r) (* (interp l) (interp r))]
-    [(divC l r)  (/ (interp l) (interp r))]
+    [(binopC '+ l r) (+ (interp l) (interp r))]
+    [(binopC '- l r)  (- (interp l) (interp r))]
+    [(binopC '* l r) (* (interp l) (interp r))]
+    [(binopC '/ l r)  (/ (interp l) (interp r))]
     [(ifleq0C c y n) (cond [(<= (interp c) 0) (interp y)]
                            [else (interp n)])]))
 
 ;tests
-(check-equal? (interp (plusC (numC 3) (numC 4))) 7)
-(check-equal? (interp (multC (numC 3) (numC 4))) 12)
-(check-equal? (interp (multC (plusC (numC 4) (numC 4)) (numC 4))) 32)
+(check-equal? (interp (binopC '+ (numC 3) (numC 4))) 7)
+(check-equal? (interp (binopC '* (numC 3) (numC 4))) 12)
+(check-equal? (interp (binopC '- (numC 3) (numC 4))) -1)
+(check-equal? (interp (binopC '/ (numC 3) (numC 4))) 3/4)
 
 
  
