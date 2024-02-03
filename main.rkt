@@ -5,11 +5,11 @@
 ;Arith - language definition
 ;expressions
 (define-type ExprC (U NumC BinopC IdC Ifleq0C))
-(struct NumC    ([n : Real]) #:transparent)
-(struct BinopC  ([operation : Symbol] [l : ExprC] [r : ExprC]) #:transparent)
-(struct AppC    ([funid : Symbol] [param : ExprC]) #:transparent)
-(struct IdC     ([id : Symbol]) #:transparent)
-(struct Ifleq0C ([c : ExprC] [y : ExprC] [n : ExprC]) #:transparent)
+(struct NumC    ([n : Real]) #:transparent)                                   ;numbers
+(struct BinopC  ([operation : Symbol] [l : ExprC] [r : ExprC]) #:transparent) ;+-*/
+(struct AppC    ([funid : Symbol] [param : ExprC]) #:transparent)             ;function call
+(struct IdC     ([id : Symbol]) #:transparent)                                ;variable
+(struct Ifleq0C ([c : ExprC] [y : ExprC] [n : ExprC]) #:transparent)          ;simple conditional
 ;functions
 (struct FundefC ([kw : Symbol] [funid : IdC] [param : IdC] [colon : Symbol] [exp : ExprC]) #:transparent)
 
@@ -53,6 +53,7 @@
               (FundefC 'func (IdC 'name) (IdC 'param) ': (BinopC '+ (NumC 1) (NumC 2))))
 (check-exn #rx"syntax error" (lambda () (parse-fundef '{notafunc name param : {+ 1 2}})))
 (check-exn #rx"syntax error" (lambda () (parse-fundef '(+ 2))))
+
 
 
 
