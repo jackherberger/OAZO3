@@ -17,6 +17,16 @@
 
 
 
+;function definitions for a runable program
+(define funs '{
+              {func adder param : {+ 1 2}}
+              {func suber x : {+ 1 x}}
+              })
+
+
+
+
+
 ;parse
  ;in: s-expression code
  ;out: the parsed ExprC representation of code
@@ -54,6 +64,19 @@
 (check-exn #rx"syntax error" (lambda () (parse-fundef '{notafunc name param : {+ 1 2}})))
 (check-exn #rx"syntax error" (lambda () (parse-fundef '(+ 2))))
 
+
+;parse-prog
+ ;in: s-expression code
+ ;out: the parsed program (list of FundefC)
+(define (parse-prog [code : Sexp]) : (Listof FundefC)
+  (match code
+    ['() '()]
+    [(cons f r) (cons (parse-fundef f) (parse-prog r))]))
+;tests
+(check-equal? (parse-prog funs)
+              (list
+               (FundefC 'func (IdC 'adder) (IdC 'param) ': (BinopC '+ (NumC 1) (NumC 2)))
+               (FundefC 'func (IdC 'suber) (IdC 'x) ': (BinopC '+ (NumC 1) (IdC 'x)))))
 
 
 
