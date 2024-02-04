@@ -20,7 +20,7 @@
 ;function definitions for a runable program
 (define funs '{
               {func adder param : {+ 1 2}}
-              {func suber x : {+ 1 x}}
+              {func suber x : {- 1 x}}
               })
 
 
@@ -76,7 +76,9 @@
 (check-equal? (parse-prog funs)
               (list
                (FundefC 'func (IdC 'adder) (IdC 'param) ': (BinopC '+ (NumC 1) (NumC 2)))
-               (FundefC 'func (IdC 'suber) (IdC 'x) ': (BinopC '+ (NumC 1) (IdC 'x)))))
+               (FundefC 'func (IdC 'suber) (IdC 'x) ': (BinopC '- (NumC 1) (IdC 'x)))))
+(check-exn #rx"syntax error" (lambda () (parse-prog '(+ 2))))
+
 
 
 
