@@ -7,11 +7,11 @@
 (define-type ExprC (U NumC BinopC IdC Ifleq0C AppC))
 (struct NumC    ([n : Real]) #:transparent)                                   ;numbers
 (struct BinopC  ([operation : Symbol] [l : ExprC] [r : ExprC]) #:transparent) ;+-*/
-(struct AppC    ([funid : Symbol] [param : ExprC]) #:transparent)             ;function call
+(struct AppC    ([fun : Symbol] [arg : ExprC]) #:transparent)             ;function call
 (struct IdC     ([id : Symbol]) #:transparent)                                ;variable
 (struct Ifleq0C ([c : ExprC] [y : ExprC] [n : ExprC]) #:transparent)          ;simple conditional
 ;functions
-(struct FundefC ([kw : Symbol] (Ids : (Listof IdC)) [colon : Symbol] [exp : ExprC]) #:transparent)
+(struct FundefC ([name : Symbol] [arg : Symbol] [body : ExprC]) #:transparent)
 
 
 
@@ -53,8 +53,9 @@
 (check-equal? (parse '{- 1 2}) (BinopC '- (NumC 1) (NumC 2)))
 (check-equal? (parse '{* 1 2}) (BinopC '* (NumC 1) (NumC 2)))
 (check-equal? (parse '{/ 1 2}) (BinopC '/ (NumC 1) (NumC 2)))
+(check-equal? (parse '{f 10}) (AppC 'f (NumC 10)))
 (check-equal? (parse '{ifleq0? -1 5 3}) (Ifleq0C (NumC -1) (NumC 5) (NumC 3)))
-(check-exn #rx"syntax error" (lambda () (parse '(+ 2))))
+(check-exn #rx"syntax error" (lambda () (parse '(+ 2 2 2))))
 
 
 ;parse-fundef
@@ -62,11 +63,11 @@
  ;out: the parsed FundefC representation of code
 (define (parse-fundef [code : Sexp]) : FundefC
   (match code
-    [(list 'func (list (? symbol? n) (? symbol? p)) ': e) (FundefC 'func (list (cast (parse n) IdC) (cast (parse p) IdC)) ': (parse e))]
+    [(list 'func (list (? symbol? n) (? symbol? p)) ': e) (FundefC n p (parse e))]
     [other (error 'parse-fundef "OAZO3 syntax error in ~e" other)]))
 ;tests
-(check-equal? (parse-fundef '{func (name param) : {+ 1 2}})
-              (FundefC 'func (list (IdC 'name) (IdC 'param)) ': (BinopC '+ (NumC 1) (NumC 2))))
+(check-equal? (parse-fundef '{func (name arg) : {+ 1 2}})
+              (FundefC 'name 'arg (BinopC '+ (NumC 1) (NumC 2))))
 (check-exn #rx"syntax error" (lambda () (parse-fundef '{notafunc name param : {+ 1 2}})))
 (check-exn #rx"syntax error" (lambda () (parse-fundef '(+ 2))))
 
@@ -81,8 +82,8 @@
 ;tests
 (check-equal? (parse-prog funs)
               (list
-               (FundefC 'func (list (IdC 'adder) (IdC 'param)) ': (BinopC '+ (NumC 1) (NumC 2)))
-               (FundefC 'func (list (IdC 'suber) (IdC 'x)) ': (BinopC '- (NumC 1) (IdC 'x)))))
+               (FundefC 'adder 'param (BinopC '+ (NumC 1) (NumC 2)))
+               (FundefC 'suber 'x (BinopC '- (NumC 1) (IdC 'x)))))
 (check-exn #rx"syntax error" (lambda () (parse-prog '(+ 2))))
 
 
