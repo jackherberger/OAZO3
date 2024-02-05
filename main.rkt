@@ -90,6 +90,31 @@
 
 
 
+
+(define (subst [what : ExprC] [for : Symbol] [in : ExprC]) : ExprC
+  (match in
+    [(NumC n) in]
+    [(IdC s) (cond
+               [(symbol=? s for) what]
+               [else in])]
+    [(AppC f a) (AppC f (subst what for a))]
+    [(BinopC '+ l r) (BinopC '+ (subst what for l)
+                        (subst what for r))]
+    [(BinopC '* l r) (BinopC '* (subst what for l)
+                        (subst what for r))]
+    [(BinopC '- l r) (BinopC '- (subst what for l)
+                        (subst what for r))]
+    [(BinopC '/ l r) (BinopC '/ (subst what for l)
+                        (subst what for r))]))
+
+(define (get-fundef [n : symbol] [fds : (listof FundefC)]) : FundefC
+    (cond
+      [(empty? fds) (error 'get-fundef "reference to undefined function")]
+      [(cons? fds) (cond
+                     [(equal? n (fdC-name (first fds))) (first fds)]
+                     [else (get-fundef n (rest fds))])]))
+
+
 ;interp
  ;in: ExprC exp, list of FundefC lst
  ;out: evaliation of exp as a Real
