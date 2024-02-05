@@ -19,13 +19,18 @@
 
 ;function definitions for a runable program
 (define funs '{
-               {func {adder param} : {+ 1 2}}
-               {func {suber x} : {- 1 x}}
+               {func {adder y} : {+ y 2}}
+               {func {suber x} : {adder x}}
+               {func {main param} : {suber 10}}
               })
 
 (define test '{
                {func {f x} : {+ x 14}}
                {func {main init} : {f 2}}
+              })
+
+(define test2 '{
+               {func {main init} : {+ 1 2}}
               })
 
 
@@ -107,28 +112,33 @@
     [(BinopC '/ l r) (BinopC '/ (subst what for l)
                         (subst what for r))]))
 
-(define (get-fundef [n : symbol] [fds : (listof FundefC)]) : FundefC
+
+(define (get-fundef [n : Symbol] [fds : (Listof FundefC)]) : FundefC
     (cond
       [(empty? fds) (error 'get-fundef "reference to undefined function")]
       [(cons? fds) (cond
-                     [(equal? n (fdC-name (first fds))) (first fds)]
+                     [(equal? n (FundefC-name (first fds))) (first fds)]
                      [else (get-fundef n (rest fds))])]))
 
 
 ;interp
  ;in: ExprC exp, list of FundefC lst
  ;out: evaliation of exp as a Real
-(define (interp [exp : ExprC] [lst : (Listof FundefC)]) : Real
+(define (interp [exp : ExprC] [funs : (Listof FundefC)]) : Real
   (match exp
     [(NumC n) n]
-    [(BinopC '+ l r) (+ (interp l lst) (interp r lst))]
-    [(BinopC '- l r)  (- (interp l lst) (interp r lst))]
-    [(BinopC '* l r) (* (interp l lst) (interp r lst))]
-    [(BinopC '/ l r)  (/ (interp l lst) (interp r lst))]
-    [(Ifleq0C c y n) (cond [(<= (interp c lst) 0) (interp y lst)]
-                           [else (interp n lst)])]
-    [(AppC funid param) 0]
-    [(IdC s) 0]))
+    [(BinopC '+ l r) (+ (interp l funs) (interp r funs))]
+    [(BinopC '- l r)  (- (interp l funs) (interp r funs))]
+    [(BinopC '* l r) (* (interp l funs) (interp r funs))]
+    [(BinopC '/ l r)  (/ (interp l funs) (interp r funs))]
+    [(Ifleq0C c y n) (cond [(<= (interp c funs) 0) (interp y funs)]
+                           [else (interp n funs)])]
+    [(AppC f a) (define fd (get-fundef f funs))
+                (interp (subst a
+                               (FundefC-arg fd)
+                               (FundefC-body fd))
+                        funs)]
+    [(IdC _) (error 'interp "OAZO3 shouldn't get here")]))
 ;tests
 
 
@@ -136,13 +146,17 @@
 ;interp-fns
  ;in: list of FundefC funcs
  ;out: evaluation of funtions as a Real
-(define (interp-fns [funcs : (Listof FundefC)]) : Real
-  0)
+(define (interp-fns [funs : (Listof FundefC)]) : Real
+  (define main (get-fundef 'main funs))
+  (interp (FundefC-body main) funs))
 ;tests
 ;(check-equal? (interp-fns) 0)
 
 
 ;top-interp
+(define (top-interp [fun-sexps : Sexp]) : Real
+  (interp-fns (parse-prog fun-sexps)))
+
 
 
 
