@@ -13,46 +13,36 @@
 ;functions
 (struct FundefC ([name : Symbol] [arg : Symbol] [body : ExprC]) #:transparent)
 
-;function definitions for a runable program
-(define test0 '{{func {main init} : {+ 1 2}}})
-(define test1 '{{func {f x} : {+ x 14}}
-               {func {main init} : {f 2}}})
-(define test2 '{{func {adder y} : {+ y 2}}
-               {func {suber x} : {adder x}}
-               {func {main param} : {suber 10}}})
-
-
-
-
-
 
 ;top-interp 
- ;in: list of oazo3 syntax functions fun-sexps
- ;out: the evaluation of main function in fun-sexps
+;in: list of oazo3 syntax functions fun-sexps
+;out: the evaluation of main function in fun-sexps
 (define (top-interp [fun-sexps : Sexp]) : Real
   (interp-fns (parse-prog fun-sexps)))
 
 
 ;interp-fns
- ;in: list of FundefC funcs
- ;out: evaluation of funtions as a Real
+;in: list of FundefC funcs
+;out: evaluation of funtions as a Real
 (define (interp-fns [funs : (Listof FundefC)]) : Real
-  (define main (get-fundef 'main funs))
-  (interp (FundefC-body main) funs))
+  (define main-init (get-fundef 'main funs))
+  (define main-zero (FundefC 'main (FundefC-arg main-init) (subst (NumC 0) 'init (FundefC-body main-init))))
+  (interp (FundefC-body main-zero) funs))
+
 
 ;get-fundef
- ;in: a symbol n and list of FundefC fds
- ;out: the function in fds with name n
+;in: a symbol n and list of FundefC fds
+;out: the function in fds with name n
 (define (get-fundef [n : Symbol] [fds : (Listof FundefC)]) : FundefC
-    (cond
-      [(empty? fds) (error 'get-fundef "OAZO3 reference to undefined function")]
-      [(cons? fds) (cond
-                     [(equal? n (FundefC-name (first fds))) (first fds)]
-                     [else (get-fundef n (rest fds))])]))
+  (cond
+    [(empty? fds) (error 'get-fundef "OAZO3 reference to undefined function")]
+    [(cons? fds) (cond
+                   [(equal? n (FundefC-name (first fds))) (first fds)]
+                   [else (get-fundef n (rest fds))])]))
 
 ;interp
- ;in: ExprC exp, list of FundefC lst
- ;out: evaluation of exp as a Real
+;in: ExprC exp, list of FundefC lst
+;out: evaluation of exp as a Real
 (define (interp [exp : ExprC] [funs : (Listof FundefC)]) : Real
   (match exp
     [(NumC n) n]
@@ -63,15 +53,15 @@
     [(Ifleq0C c y n) (cond [(<= (interp c funs) 0) (interp y funs)]
                            [else (interp n funs)])]
     [(AppC f a) (define fd (get-fundef f funs))
-                (interp (subst a
+                (interp (subst (NumC (interp a funs))
                                (FundefC-arg fd)
                                (FundefC-body fd))
                         funs)]
     [(IdC _) (error 'interp "OAZO3 shouldn't get here")]))
 
 ;subst
- ;in: ExprC what, Symbol for, and ExprC in
- ;out: 
+;in: ExprC what, Symbol for, and ExprC in
+;out: 
 (define (subst [what : ExprC] [for : Symbol] [in : ExprC]) : ExprC
   (match in
     [(NumC n) in]
@@ -80,53 +70,155 @@
                [else in])]
     [(AppC f a) (AppC f (subst what for a))]
     [(BinopC '+ l r) (BinopC '+ (subst what for l)
-                        (subst what for r))]
+                             (subst what for r))]
     [(BinopC '* l r) (BinopC '* (subst what for l)
-                        (subst what for r))]
+                             (subst what for r))]
     [(BinopC '- l r) (BinopC '- (subst what for l)
-                        (subst what for r))]
+                             (subst what for r))]
     [(BinopC '/ l r) (BinopC '/ (subst what for l)
-                        (subst what for r))]))
+                             (subst what for r))]))
 
 
 ;parse-prog
- ;in: s-expression code
- ;out: the parsed program (list of FundefC)
+;in: s-expression code
+;out: the parsed program (list of FundefC)
 (define (parse-prog [code : Sexp]) : (Listof FundefC)
   (match code
     ['() '()]
     [(cons f r) (cons (parse-fundef f) (parse-prog r))]))
 
 ;parse-fundef
- ;in: s-expression code
- ;out: the parsed FundefC representation of code
+;in: s-expression code
+;out: the parsed FundefC representation of code
 (define (parse-fundef [code : Sexp]) : FundefC
   (match code
     [(list 'func (list (? symbol? n) (? symbol? p)) ': e) (FundefC n p (parse e))]
     [other (error 'parse-fundef "OAZO3 syntax error in ~e" other)]))
 
 ;parse
- ;in: s-expression code
- ;out: the parsed ExprC representation of code
+;in: s-expression code
+;out: the parsed ExprC representation of code
 (define (parse [code : Sexp]) : ExprC
   (match code
     [(? real? n)   (NumC n)]
-    [(? symbol? s) (IdC s)]
+    [(? symbol? s) (cond [(is-allowed? s) (IdC s)]
+                         [else (error 'parse "OAZO3 key word ~e identified" s)])]
     [(list '+ l r) (BinopC '+ (parse l) (parse r))]
     [(list '- l r) (BinopC '- (parse l) (parse r))]
     [(list '* l r) (BinopC '* (parse l) (parse r))]
     [(list '/ l r) (BinopC '/ (parse l) (parse r))]
+    [(list s l r) (error 'parse "OAZO3 ~e operation not supported" s)]
     [(list 'ifleq0? f s r) (Ifleq0C (parse f) (parse s) (parse r))]
-    [(list name param) (AppC (cast name Symbol) (parse param))]
+    [(list (? symbol? name) param) (AppC name (parse param))]
     [other (error 'parse "OAZO3 syntax error in ~e" other)]))
 
+;is-allowed?
+ ;takes in a symbol
+ ;returns false if it is a keyword, otherwise true
+(define (is-allowed? [s : Symbol]) : Boolean
+  (match s
+    ['+ #f]
+    ['- #f]
+    ['* #f]
+    ['/ #f]
+    ['ifleq0? #f]
+    ['func #f]
+    [': #f]
+    [else #t]))
 
 
 
 
 
 
-;parse-tests
+;;;; TESTING
+
+;function definitions for a runable program
+(define test0 '{{func {main init} : {+ 1 2}}})
+(define test0-parsed (list (FundefC 'main 'init (BinopC '+ (NumC 1) (NumC 2)))))
+(define test1 '{{func {f x} : {+ x 14}}
+                {func {main init} : {f 2}}})
+(define test1-parsed (list
+                      (FundefC 'f 'x (BinopC '+ (IdC 'x) (NumC 14)))
+                      (FundefC 'main 'init (AppC 'f (NumC 2)))))
+(define test2 '{{func {adder y} : {+ y 2}}
+                {func {suber x} : {adder x}}
+                {func {main param} : {suber 10}}})
+(define test2-parsed (list
+                      (FundefC 'adder 'y (BinopC '+ (IdC 'y) (NumC 2)))
+                      (FundefC 'suber 'x (AppC 'adder (IdC 'x)))
+                      (FundefC 'main 'param (AppC 'suber (NumC 10)))))
+
+(define testSub '{{func {adder y} : {- y 2}}
+                  {func {suber x} : {adder x}}
+                  {func {main param} : {suber 10}}})
+
+(define testMult '{{func {adder y} : {* y 2}}
+                   {func {suber x} : {adder x}}
+                   {func {main param} : {suber 10}}})
+
+(define testDiv '{{func {adder y} : {/ y 2}}
+                  {func {suber x} : {adder x}}
+                  {func {main param} : {suber 10}}})
+
+;top-interp
+(check-equal? (top-interp test0) 3)
+(check-equal? (top-interp test1) 16)
+(check-equal? (top-interp test2) 12)
+(check-equal? (top-interp testSub) 8)
+(check-equal? (top-interp testMult) 20)
+(check-equal? (top-interp testDiv) 5)
+
+
+;interp-fns
+(check-equal? (interp-fns (parse-prog test0)) 3)
+(check-equal? (interp-fns test1-parsed) 16)
+(check-equal? (interp-fns test2-parsed) 12)
+
+;get-fundef
+(check-equal? (get-fundef 'main test0-parsed) (FundefC 'main 'init (BinopC '+ (NumC 1) (NumC 2))))
+(check-equal? (get-fundef 'main test1-parsed) (FundefC 'main 'init (AppC 'f (NumC 2))))
+(check-equal? (get-fundef 'main test2-parsed) (FundefC 'main 'param (AppC 'suber (NumC 10))))
+(check-equal? (get-fundef 'adder test2-parsed) (FundefC 'adder 'y (BinopC '+ (IdC 'y) (NumC 2))))
+(check-exn #rx"undefined" (lambda () (get-fundef 'fakename '())))
+
+;interp
+(define tester (parse-prog'{{func {main init} : {- 1 2}}}))
+(define sub (BinopC '- (NumC 3) (NumC 2))) 
+(check-equal? (interp sub tester) 1)
+
+(define mult (BinopC '* (NumC 3) (NumC 2))) 
+(check-equal? (interp mult tester) 6)
+
+(define div (BinopC '/ (NumC 6) (NumC 2))) 
+(check-equal? (interp div tester) 3)
+
+(define leq_y (Ifleq0C (NumC -4) (NumC 6) (NumC 2))) 
+(check-equal? (interp leq_y tester) 6)
+
+(define leq_n (Ifleq0C (NumC 4) (NumC 6) (NumC 2))) 
+(check-equal? (interp leq_n tester) 2)
+
+(check-exn #rx"OAZO3 shouldn't get here" (lambda () (interp (IdC 'a) tester)))
+  
+
+
+;subst
+(check-equal? (subst (NumC 0) 'x (BinopC '+ (IdC 'x) (IdC 'y))) (BinopC '+ (NumC 0) (IdC 'y)))
+
+;parse-prog
+(check-equal? (parse-prog test0) test0-parsed)
+(check-equal? (parse-prog test1) test1-parsed)
+(check-equal? (parse-prog test2) test2-parsed)
+(check-exn #rx"syntax error" (lambda () (parse-prog '(+ 2))))
+
+;parse-fundef
+(check-equal? (parse-fundef '{func {adder y} : {+ y 2}}) (FundefC 'adder 'y (BinopC '+ (IdC 'y) (NumC 2))))
+(check-equal? (parse-fundef '{func {main param} : {suber 10}}) (FundefC 'main 'param (AppC 'suber (NumC 10))))
+(check-exn #rx"syntax error" (lambda () (parse-fundef '{notafunc name param : {+ 1 2}})))
+(check-exn #rx"syntax error" (lambda () (parse-fundef '(+ 2))))
+
+;parse
 (check-equal? (parse 1) (NumC 1))
 (check-equal? (parse 'y) (IdC 'y))
 (check-equal? (parse '{+ 1 2}) (BinopC '+ (NumC 1) (NumC 2)))
@@ -136,23 +228,16 @@
 (check-equal? (parse '{f 10}) (AppC 'f (NumC 10)))
 (check-equal? (parse '{ifleq0? -1 5 3}) (Ifleq0C (NumC -1) (NumC 5) (NumC 3)))
 (check-exn #rx"syntax error" (lambda () (parse '(+ 2 2 2))))
+(check-exn #rx"operation" (lambda () (parse '(% 2 2))))
+(check-exn #rx"key" (lambda () (parse '(+ / 2))))
 
-
-
-;tests-parse-fundef
-(check-equal? (parse-fundef '{func (name arg) : {+ 1 2}})
-              (FundefC 'name 'arg (BinopC '+ (NumC 1) (NumC 2))))
-(check-exn #rx"syntax error" (lambda () (parse-fundef '{notafunc name param : {+ 1 2}})))
-(check-exn #rx"syntax error" (lambda () (parse-fundef '(+ 2))))
-
-
-;parse prog tests
-#;(check-equal? (parse-prog funs)
-              (list
-               (FundefC 'adder 'param (BinopC '+ (NumC 1) (NumC 2)))
-               (FundefC 'suber 'x (BinopC '- (NumC 1) (IdC 'x)))))
-(check-exn #rx"syntax error" (lambda () (parse-prog '(+ 2))))
-
-
-
+;is-allowed?
+(check-equal? (is-allowed? '+) #f)
+(check-equal? (is-allowed? '-) #f)
+(check-equal? (is-allowed? '/) #f)
+(check-equal? (is-allowed? '*) #f)
+(check-equal? (is-allowed? ':) #f)
+(check-equal? (is-allowed? 'ifleq0?) #f)
+(check-equal? (is-allowed? 'func) #f)
+(check-equal? (is-allowed? 'sym) #t)
 
